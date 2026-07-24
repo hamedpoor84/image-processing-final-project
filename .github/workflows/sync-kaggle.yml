@@ -1,0 +1,53 @@
+name: Sync notebook from Kaggle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Kaggle CLI
+        run: pip install kaggle
+
+      - name: Download notebook from Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p kaggle_sync
+          kaggle kernels pull \
+            hamedpooraghniaei/image-processing-final-project \
+            -p kaggle_sync
+
+      - name: Replace repository notebook
+        run: |
+          NOTEBOOK=$(find kaggle_sync -name "*.ipynb" -type f | head -n 1)
+          test -n "$NOTEBOOK"
+          cp "$NOTEBOOK" puzzle_pieces.ipynb
+          rm -rf kaggle_sync
+
+      - name: Commit Kaggle changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add puzzle_pieces.ipynb
+
+          if git diff --cached --quiet; then
+            echo "No Kaggle changes found."
+          else
+            git commit -m "Sync notebook from Kaggle"
+            git push
+          fi
